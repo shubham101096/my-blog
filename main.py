@@ -22,6 +22,15 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+gravatar = Gravatar(app,
+                    size=100,
+                    rating='g',
+                    default='retro',
+                    force_default=False,
+                    force_lower=False,
+                    use_ssl=False,
+                    base_url=None)
+
 
 ##CONFIGURE TABLES
 
@@ -79,10 +88,8 @@ def admin_only(func):
 @app.route('/')
 def get_all_posts():
     posts = BlogPost.query.all()
-    is_admin = False
-    if current_user.is_authenticated and current_user.id == 1:
-        is_admin = True
-    return render_template("index.html", all_posts=posts, is_admin=is_admin)
+
+    return render_template("index.html", all_posts=posts)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -137,9 +144,7 @@ def logout():
 def show_post(post_id):
     form = CommentForm()
     requested_post = BlogPost.query.get(post_id)
-    is_admin = False
-    if current_user.is_authenticated and current_user.id == 1:
-        is_admin = True
+
     if form.validate_on_submit():
         if not current_user.is_authenticated:
             flash("You need to Login or register to comment")
@@ -149,7 +154,7 @@ def show_post(post_id):
         db.session.add(new_comment)
         db.session.commit()
 
-    return render_template("post.html", post=requested_post, is_admin=is_admin, form=form)
+    return render_template("post.html", post=requested_post, form=form)
 
 
 @app.route("/about")
