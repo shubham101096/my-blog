@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
-from forms import CreatePostForm, RegisterForm, LoginForm
+from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
 from flask_gravatar import Gravatar
 
 app = Flask(__name__)
@@ -36,6 +36,7 @@ class BlogPost(db.Model):
     img_url = db.Column(db.String(250), nullable=False)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     author = relationship("User", back_populates="posts")
+    comments = relationship("Comment", back_populates="post")
 
 
 class User(UserMixin, db.Model):
@@ -45,7 +46,17 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(100))
     name = db.Column(db.String(1000))
     posts = relationship("BlogPost", back_populates="author")
+    comments = relationship("Comment", back_populates="author")
 
+
+class Comment(db.Model):
+    __tablename__ = "comments"
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('blog_posts.id'))
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    post = relationship("BlogPost", back_populates="comments")
+    author = relationship("User", back_populates="comments")
 
 db.create_all()
 
@@ -122,14 +133,23 @@ def logout():
     return redirect(url_for('get_all_posts'))
 
 
-@app.route("/post/<int:post_id>")
-@login_required
+@app.route("/post/<int:post_id>", methods=['GET', 'POST'])
 def show_post(post_id):
+    form = CommentForm()
     requested_post = BlogPost.query.get(post_id)
     is_admin = False
     if current_user.is_authenticated and current_user.id == 1:
         is_admin = True
-    return render_template("post.html", post=requested_post, is_admin=is_admin)
+    if form.validate_on_submit():
+        if not current_user.is_authenticated:
+            flash("You need to Login or register to comment")
+            return redirect(url_for('login'))
+        comment_text = form.comment_text.data
+        new_comment = Comment(text=comment_text, post_id=post_id, author_id=current_user.id)
+        db.session.add(new_comment)
+        db.session.commit()
+
+    return render_template("post.html", post=requested_post, is_admin=is_admin, form=form)
 
 
 @app.route("/about")
